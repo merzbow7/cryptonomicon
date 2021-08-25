@@ -1,141 +1,201 @@
 <template>
   <div class="row">
     <div class="">
-      <div class="col-md-4 mb-3">
-        <label for="exampleInputEmail1" class="form-label">Ticker</label>
-        <input type="text" class="form-control" id="exampleInputEmail1"
-               v-model="ticker"
-               @keypress.enter="exist ? add() : null"
-        >
+      <div class="mb-3">
+        <div class="input-group mb-3">
+          <span class="input-group-text">Currency</span>
+          <input type="text" class="form-control" aria-label="Kind of currency"
+                 placeholder="for example: BTC"
+                 v-model="ticker"
+                 @input="inputError = ''"
+                 @keypress.enter="existCoin ? add() : null"
+          >
+        </div>
         <div
           v-if="this.inputError"
           class="mt-2 text-danger"
         >{{ inputError }}
         </div>
-        <div v-if="inputTip.length" class="mt-3 d-flex justify-content-evenly">
-          <span v-for="(tip, idx) in inputTip" :key="idx"
-                class="btn bg-secondary bg-opacity-25 rounded-pill py-0"
+        <span v-if="coinTips.length" class="mt-3 d-flex justify-content-start">
+          <span class="input-group-text invisible py-0">Currency</span>
+          <span v-for="(tip, idx) in coinTips" :key="idx"
+                class="btn bg-secondary bg-opacity-25 rounded-pill py-0 mx-2"
                 @click.stop.prevent="ticker = tip"
           >{{ tip }}</span>
-        </div>
+        </span>
       </div>
-      <div class="d-flex">
-        <button type="submit" class="btn btn-primary" @click="add" :disabled="!exist">Submit</button>
-        <div class="text-center">
-          <button class="btn btn-primary mx-2">Prev</button>
-          <button class="btn btn-primary mx-2">Next</button>
-        </div>
+      <div class="col-md-4">
+        <button type="submit" class="btn btn-primary"
+                @click="add"
+                :disabled="!existCoin"
+        >Submit
+        </button>
       </div>
+
+      <div class="input-group my-3">
+        <span class="input-group-text">Filter</span>
+        <input type="text" class="form-control" aria-label="filter of currency" v-model="filter">
+      </div>
+
+      <the-pagination
+        v-if="filteredCurrencyLength > perPage"
+        :per-page="perPage"
+        :page="page"
+        :currency-list-length="filteredCurrencyLength"
+        @changePage="page = $event ? $event : page"
+      />
     </div>
   </div>
 
-  <template v-if="currencyList.length">
+  <template v-if="filteredCurrencyLength">
     <hr>
     <div class="row">
       <the-exchange
-        v-for="(item, idx) in currencyList"
-        :key="idx"
-        @click="sel = idx"
-        @deleteExchange="removeCoin(idx)"
-        @dataSet="saveDataSet"
-        :currencyName="item"
-        :selected="sel === idx"
-        class="col-md-4 text-center py-5 rounded-3 border"
+        v-for="ticker in paginateCurrency"
+        :key="ticker.name"
+        @click="selectedTickerName = ticker.name"
+        @deleteExchange="removeCurrency(ticker.name)"
+        :ticker="ticker"
+        class="col-md-4 text-center py-4 rounded-3 border"
         :class="{
-          'border-5 border-info': sel === idx
+          'border-5 border-info': selectedTickerName === ticker.name
         }"
       />
     </div>
     <hr>
   </template>
 
-  <the-graph v-if="sel!==null" :dataSet="dataSet"/>
+  <the-graph v-if="selectedTickerName !== null" :ticker="currentCurrency"/>
 
 </template>
 
 <script>
+import { loadCoinList, loadTickers } from '@/api'
 
 import TheExchange from '@/components/TheExchange'
 import TheGraph from '@/components/TheGraph'
+import ThePagination from '@/components/ThePagination'
 
 export default {
   name: 'App',
   components: {
+    ThePagination,
     TheGraph,
     TheExchange
   },
   data () {
     return {
       ticker: '',
+      perPage: 3,
+      page: 1,
       dataSet: [],
       coins: null,
       inputError: '',
-      exist: false,
-      sel: null,
-      inputTip: [],
-      currencyList: []
+      selectedTickerName: null,
+      filter: '',
+      currencyListExchange: []
     }
   },
   async created () {
-    const url = 'https://min-api.cryptocompare.com/data/all/coinlist?summary=true'
-    const response = await fetch(url)
-    if (response.ok) {
-      const { Data } = await response.json()
-      this.coins = Array.from(Object.values(Data))
+    const { Data } = await loadCoinList()
+    this.coins = Array.from(Object.values(Data))
+    this.currencyListExchange = JSON.parse(localStorage.getItem('crypto-list')) || []
+    const searchParams = Object.fromEntries(new URL(window.location).searchParams.entries())
+    if (searchParams.filter) {
+      this.filter = searchParams.filter
     }
-    this.currencyList = JSON.parse(localStorage.getItem('crypto-list'))
+    if (searchParams.page) {
+      this.page = Number(searchParams.page)
+    }
+    setInterval(this.updateExchange, 5000)
   },
   methods: {
     async add () {
-      const existOnDesk = this.currencyList.find(item => item === this.ticker.toUpperCase())
+      const existOnDesk = this.currencyList.includes(this.coinUpper)
       if (existOnDesk) {
         this.inputError = 'This coin already at desk'
-      } else if (this.exist) {
-        this.currencyList.push(this.ticker.toUpperCase())
-        localStorage.setItem('crypto-list', JSON.stringify(this.currencyList))
+      } else if (this.existCoin) {
+        this.currencyListExchange = [...this.currencyListExchange, {
+          name: this.coinUpper,
+          value: 0
+        }]
         this.ticker = ''
-        this.inputTip = []
+        this.filter = ''
       }
     },
-    removeCoin (idx) {
-      if (this.sel === idx) {
-        this.sel = null
-        clearInterval(this.clock)
+    removeCurrency (tickerToRemove) {
+      if (this.selectedTickerName === tickerToRemove) {
+        this.selectedTickerName = null
       }
-      this.currencyList.splice(idx, 1)
-      localStorage.setItem('crypto-list', JSON.stringify(this.currencyList))
+      const indexToRemove = this.currencyListExchange.findIndex(ticker => Object.keys(ticker) === [tickerToRemove])
+      this.currencyListExchange.splice(indexToRemove, 1)
+      this.currencyListExchange = [...this.currencyListExchange]
     },
-    selectCoin (idx) {
-      if (this.sel !== null) {
-        console.log('selected')
+    async updateExchange () {
+      if (this.currencyList.length !== 0) {
+        this.currencyListExchange = await loadTickers(this.currencyListExchange)
       }
-      this.sel = idx
-    },
-    saveDataSet (event) {
-      this.dataSet = event
     }
   },
-  watch: {
-    ticker (data) {
-      this.inputError = ''
-      if (data) {
-        data = data.toUpperCase()
-        this.exist = !!this.coins.find(item => item.Symbol === data)
+  computed: {
+    currentCurrency () {
+      return this.currencyListExchange.find(item => item.name === this.selectedTickerName)
+    },
+    currencyList () {
+      return this.currencyListExchange.map(item => item.name)
+    },
+    filteredCurrencyLength () {
+      return this.currencyList.length
+    },
+    filteredCurrency () {
+      return this.currencyListExchange.filter(ticker => ticker.name.includes(this.filter.toUpperCase()))
+    },
+    paginateCurrency () {
+      return this.filteredCurrency.slice((this.page - 1) * this.perPage, this.page * this.perPage)
+    },
+    existCoin () {
+      return !!this.coins?.find(item => item.Symbol === this.coinUpper)
+    },
+    coinUpper () {
+      return this.ticker.toUpperCase()
+    },
+    coinTips () {
+      if (this.ticker) {
         let coins = this.coins.filter(item =>
-          item.Symbol.toUpperCase().indexOf(data) !== -1 || item.FullName.toUpperCase().indexOf(data) !== -1)
+          item.Symbol.toUpperCase().indexOf(this.coinUpper) !== -1 ||
+          item.FullName.toUpperCase().indexOf(this.coinUpper) !== -1)
         coins = coins.map(item => item.Symbol)
         coins.sort(function (a, b) {
           return a.length - b.length
         })
-        const index = coins.indexOf(data)
+        const index = coins.indexOf(this.coinUpper)
         if (index !== -1) {
           coins.unshift(...coins.splice(index, 1))
         }
-        this.inputTip = coins.slice(0, 4)
+        return coins.slice(0, 4)
       } else {
-        this.exist = false
-        this.inputTip = []
+        return []
       }
+    }
+  },
+  watch: {
+    currencyListExchange (oldV, newV) {
+      localStorage.setItem('crypto-list', JSON.stringify(this.currencyListExchange))
+    },
+    paginateCurrency () {
+      if (this.paginateCurrency.length === 0) {
+        this.page = this.page > 1 ? this.page - 1 : 1
+      }
+    },
+    filter () {
+      this.page = 1
+    },
+    page () {
+      window.history.pushState(
+        null,
+        document.title,
+        `${window.location.pathname}?filter=${this.filter}&page=${this.page}`
+      )
     }
   }
 }
@@ -146,6 +206,5 @@ export default {
 
 #app {
   margin: 30px;
-  font-family: Avenir, Helvetica, Arial, sans-serif;
 }
 </style>

@@ -1,8 +1,8 @@
 <template>
   <div>
-    <div class="text-secondary my-3">{{ currencyName }} - USD</div>
-    <div class="fs-3 my-3" v-if="exchange!==null">{{ exchangeValue }}</div>
-    <div v-else class="my-3">
+    <div class="text-secondary mb-2">{{ ticker.name }} - USD</div>
+    <div class="fs-3 mb-2" v-if="ticker.value">{{ formattedExchangeValue }}</div>
+    <div v-else class="mb-2">
       <div class="spinner-border text-primary" role="status">
         <span class="sr-only"></span>
       </div>
@@ -21,47 +21,15 @@
 </template>
 
 <script>
+
 export default {
   name: 'TheExchange',
-  data () {
-    return {
-      exchange: null,
-      exchangeList: new Array(48).fill(0),
-      clock: null
-    }
-  },
-  props: ['currencyName', 'selected'],
-  emits: ['deleteExchange', 'dataSet'],
-  methods: {
-    async loadCrypto () {
-      // const apiKey = 'f15144f5d36c62f6258ceac23aad8f820eecc8fc08c1001a5a97cef32d15701b'
-      const apiKey = '44e13f016ce1bc6fdc3d289c770949fe2787903525fc4b65d35ea3abd443187e'
-      const url = `https://min-api.cryptocompare.com/data/price?fsym=${this.currencyName}&tsyms=USD&api_key=${apiKey}`
-      const response = await fetch(url)
-      if (response.ok) {
-        return response.json()
-      } else {
-        return false
-      }
-    }
-  },
+  props: ['ticker'],
+  emits: ['deleteExchange'],
   computed: {
-    exchangeValue () {
-      return this.exchange > 1 ? this.exchange?.toFixed(2) : this.exchange?.toPrecision(2)
+    formattedExchangeValue () {
+      return this.ticker.value > 1 ? this.ticker.value.toFixed(2) : this.ticker.value.toPrecision(3)
     }
-  },
-  async created () {
-    this.clock = setInterval(async () => {
-      const data = await this.loadCrypto()
-      if (data) {
-        [this.exchange] = Object.values(data)
-        await this.exchangeList.shift()
-        this.exchangeList.push(this.exchange)
-        if (this.selected) {
-          this.$emit('dataSet', this.exchangeList)
-        }
-      }
-    }, 2500)
   }
 }
 </script>
