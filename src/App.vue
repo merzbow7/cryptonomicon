@@ -202,6 +202,9 @@ export default {
         `${window.location.pathname}?filter=${this.filter}&page=${this.page}`
       )
     }
+  },
+  beforeUnmount () {
+    localStorage.setItem('crypto-list', JSON.stringify(this.currencyListExchange))
   }
 }
 </script>
