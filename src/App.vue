@@ -70,7 +70,7 @@
 </template>
 
 <script>
-import { loadCoinList, subsribeTicker, unSubsribeTicker } from '@/api'
+import { loadCoinList, subscribeTicker, unSubscribeTicker } from '@/api'
 
 import TheExchange from '@/components/TheExchange'
 import TheGraph from '@/components/TheGraph'
@@ -106,7 +106,7 @@ export default {
     if (searchParams.page) {
       this.page = Number(searchParams.page)
     }
-    this.currencyListExchange.forEach(item => subsribeTicker(item, this.updateCurrencyValue))
+    this.currencyListExchange.forEach(item => subscribeTicker(item, this.updateCurrencyValue))
   },
   methods: {
     async add () {
@@ -118,7 +118,7 @@ export default {
           name: this.coinUpper,
           value: 0
         }]
-        subsribeTicker({ name: this.coinUpper }, this.updateCurrencyValue)
+        subscribeTicker({ name: this.coinUpper }, this.updateCurrencyValue)
         this.ticker = ''
         this.filter = ''
       }
@@ -127,7 +127,7 @@ export default {
       if (this.selectedTickerName === tickerToRemove) {
         this.selectedTickerName = null
       }
-      unSubsribeTicker({ name: tickerToRemove }, this.updateCurrencyValue)
+      unSubscribeTicker({ name: tickerToRemove }, this.updateCurrencyValue)
       const indexToRemove = this.currencyListExchange.findIndex(ticker => Object.keys(ticker) === [tickerToRemove])
       this.currencyListExchange.splice(indexToRemove, 1)
       this.currencyListExchange = [...this.currencyListExchange]
