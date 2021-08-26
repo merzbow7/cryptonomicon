@@ -53,7 +53,7 @@
       <the-exchange
         v-for="ticker in paginateCurrency"
         :key="ticker.name"
-        @click="selectedTickerName = ticker.name"
+        @click="selectedTickerName = ticker.name; dataSet = []"
         @deleteExchange="removeCurrency(ticker.name)"
         :ticker="ticker"
         class="col-md-4 text-center py-4 rounded-3 border"
@@ -65,12 +65,12 @@
     <hr>
   </template>
 
-  <the-graph v-if="selectedTickerName !== null" :ticker="currentCurrency"/>
+  <the-graph v-if="selectedTickerName !== null" :data-set="dataSet"/>
 
 </template>
 
 <script>
-import { loadCoinList, loadTickers } from '@/api'
+import { loadCoinList, subsribeTicker, unSubsribeTicker } from '@/api'
 
 import TheExchange from '@/components/TheExchange'
 import TheGraph from '@/components/TheGraph'
@@ -97,8 +97,7 @@ export default {
     }
   },
   async created () {
-    const { Data } = await loadCoinList()
-    this.coins = Array.from(Object.values(Data))
+    this.coins = await loadCoinList()
     this.currencyListExchange = JSON.parse(localStorage.getItem('crypto-list')) || []
     const searchParams = Object.fromEntries(new URL(window.location).searchParams.entries())
     if (searchParams.filter) {
@@ -107,7 +106,7 @@ export default {
     if (searchParams.page) {
       this.page = Number(searchParams.page)
     }
-    setInterval(this.updateExchange, 5000)
+    this.currencyListExchange.forEach(item => subsribeTicker(item, this.updateCurrencyValue))
   },
   methods: {
     async add () {
@@ -119,6 +118,7 @@ export default {
           name: this.coinUpper,
           value: 0
         }]
+        subsribeTicker({ name: this.coinUpper }, this.updateCurrencyValue)
         this.ticker = ''
         this.filter = ''
       }
@@ -127,14 +127,19 @@ export default {
       if (this.selectedTickerName === tickerToRemove) {
         this.selectedTickerName = null
       }
+      unSubsribeTicker({ name: tickerToRemove }, this.updateCurrencyValue)
       const indexToRemove = this.currencyListExchange.findIndex(ticker => Object.keys(ticker) === [tickerToRemove])
       this.currencyListExchange.splice(indexToRemove, 1)
       this.currencyListExchange = [...this.currencyListExchange]
     },
-    async updateExchange () {
-      if (this.currencyList.length !== 0) {
-        this.currencyListExchange = await loadTickers(this.currencyListExchange)
+    updateCurrencyValue (tickerName, tickerValue) {
+      if (tickerName === this.selectedTickerName) {
+        if (this.dataSet.length >= 20) {
+          this.dataSet.unshift()
+        }
+        this.dataSet.push(tickerValue)
       }
+      this.currencyListExchange.find(item => item.name === tickerName).value = tickerValue
     }
   },
   computed: {
@@ -179,7 +184,7 @@ export default {
     }
   },
   watch: {
-    currencyListExchange (oldV, newV) {
+    currencyListExchange () {
       localStorage.setItem('crypto-list', JSON.stringify(this.currencyListExchange))
     },
     paginateCurrency () {

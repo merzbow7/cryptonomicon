@@ -15,23 +15,16 @@
 
 export default {
   name: 'TheGraph',
-  props: ['ticker'],
-  data () {
-    return {
-      dataSet: []
-    }
-  },
-  methods: {
+  props: ['dataSet'],
+  computed: {
     normalizedGraph () {
       const max = Math.max(...this.dataSet.filter(item => item > 0))
       const min = Math.min(...this.dataSet.filter(item => item > 0))
       if (min === max) {
         return this.dataSet.map(price => 50)
       }
-      console.log(this.dataSet.map(price => 10 + ((price - min) * 90) / (max - min)))
       return this.dataSet.map(price => 10 + ((price - min) * 90) / (max - min))
     }
-  },
-  watch: {}
+  }
 }
 </script>
